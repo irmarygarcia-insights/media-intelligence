@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Media Intelligence</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,400&family=Instrument+Serif:ital@0;1&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0a0a0f; --bg2: #111118; --bg3: #18181f; --bg4: #1e1e28;
+    --border: rgba(255,255,255,0.07); --border2: rgba(255,255,255,0.12);
+    --text: #e8e8f0; --text2: #9090a8; --text3: #5a5a72;
+    --accent: #c8f135; --accent2: #a8d020;
+    --red: #ff4d6d; --red-dim: rgba(255,77,109,0.12);
+    --amber: #f5a623; --amber-dim: rgba(245,166,35,0.12);
+    --green: #4ade80; --green-dim: rgba(74,222,128,0.1);
+    --mono: 'DM Mono', monospace; --serif: 'Instrument Serif', serif; --sans: 'DM Sans', sans-serif;
+  }
+  body { background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 14px; line-height: 1.5; min-height: 100vh; }
+
+  /* ── Login screen ── */
+  #login-screen {
+    position: fixed; inset: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; background: var(--bg); z-index: 50;
+  }
+  .login-card {
+    background: var(--bg2); border: 1px solid var(--border2);
+    border-radius: 16px; padding: 40px; width: 380px; text-align: center;
+  }
+  .login-mark { font-family: var(--mono); font-size: 11px; letter-spacing: 0.2em; color: var(--accent); text-transform: uppercase; display: block; margin-bottom: 8px; }
+  .login-title { font-family: var(--serif); font-size: 28px; margin-bottom: 8px; }
+  .login-sub { font-size: 13px; color: var(--text3); margin-bottom: 28px; line-height: 1.6; }
+  .login-input { width: 100%; background: var(--bg3); border: 1px solid var(--border2); border-radius: 8px; padding: 11px 14px; color: var(--text); font-family: var(--mono); font-size: 14px; outline: none; text-align: center; letter-spacing: 0.1em; transition: border-color 0.2s; margin-bottom: 12px; }
+  .login-input:focus { border-color: var(--accent); }
+  .login-input.error { border-color: var(--red); animation: shake 0.3s ease; }
+  @keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-6px)} 75%{transform:translateX(6px)} }
+  .login-btn { width: 100%; background: var(--accent); color: #0a0a0f; border: none; border-radius: 8px; padding: 11px; font-family: var(--mono); font-size: 13px; font-weight: 500; letter-spacing: 0.05em; cursor: pointer; transition: background 0.15s; }
+  .login-btn:hover { background: var(--accent2); }
+  .login-error { font-size: 12px; color: var(--red); font-family: var(--mono); margin-top: 10px; min-height: 16px; }
+  .login-note { font-size: 11px; color: var(--text3); font-family: var(--mono); margin-top: 20px; }
+
+  /* ── Shell ── */
+  .shell { display: flex; height: 100vh; overflow: hidden; }
+  .sidebar { width: 220px; flex-shrink: 0; background: var(--bg2); border-right: 1px solid var(--border); display: flex; flex-direction: column; }
+  .logo { padding: 20px 18px 16px; border-bottom: 1px solid var(--border); }
+  .logo-mark { font-family: var(--mono); font-size: 10px; letter-spacing: 0.15em; color: var(--accent); text-transform: uppercase; display: block; }
+  .logo-name { font-family: var(--serif); font-size: 20px; color: var(--text); line-height: 1.1; display: block; margin-top: 2px; }
+  .nav { padding: 12px 10px; flex: 1; }
+  .nav-label { font-family: var(--mono); font-size: 9px; letter-spacing: 0.2em; color: var(--text3); text-transform: uppercase; padding: 0 8px; margin: 16px 0 6px; display: block; }
+  .nav-item { display: flex; align-items: center; gap: 8px; padding: 7px 8px; border-radius: 6px; cursor: pointer; color: var(--text2); font-size: 13px; transition: all 0.15s; border: 1px solid transparent; }
+  .nav-item:hover { background: var(--bg3); color: var(--text); }
+  .nav-item.active { background: var(--bg3); color: var(--accent); border-color: rgba(200,241,53,0.15); }
+  .nav-icon { font-size: 14px; width: 16px; text-align: center; }
+  .nav-badge { margin-left: auto; background: var(--red-dim); color: var(--red); font-size: 10px; font-family: var(--mono); padding: 1px 6px; border-radius: 10px; display: none; }
+  .sidebar-footer { padding: 12px 10px; border-top: 1px solid var(--border); }
+  .user-row { display: flex; align-items: center; gap: 8px; padding: 6px 8px; cursor: pointer; border-radius: 6px; transition: background 0.15s; }
+  .user-row:hover { background: var(--bg3); }
+  .user-avatar { width: 26px; height: 26px; border-radius: 50%; background: var(--bg4); border: 1px solid var(--border2); object-fit: cover; }
+  .user-avatar-fallback { width: 26px; height: 26px; border-radius: 50%; background: rgba(200,241,53,0.15); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 500; color: var(--accent); font-family: var(--mono); flex-shrink: 0; }
+  .user-name { font-size: 12px; color: var(--text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 120px; }
+  .sign-out-btn { margin-left: auto; font-size: 10px; color: var(--text3); font-family: var(--mono); background: none; border: none; cursor: pointer; padding: 2px 4px; border-radius: 3px; transition: color 0.15s; }
+  .sign-out-btn:hover { color: var(--red); }
+  .status-row { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text3); font-family: var(--mono); padding: 4px 8px; margin-top: 4px; }
+  .status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); animation: pulse 2s ease-in-out infinite; }
+  @keyframes pulse { 0%,100%{opacity:1}50%{opacity:0.4} }
+
+  /* ── Main ── */
+  .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+  .topbar { background: var(--bg2); border-bottom: 1px solid var(--border); padding: 12px 24px; display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+  .search-wrap { flex: 1; position: relative; }
+  .search-icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text3); font-size: 14px; pointer-events: none; }
+  .search-input { width: 100%; background: var(--bg3); border: 1px solid var(--border2); border-radius: 8px; padding: 9px 12px 9px 36px; color: var(--text); font-family: var(--sans); font-size: 13px; outline: none; transition: border-color 0.2s; }
+  .search-input:focus { border-color: var(--accent); }
+  .search-input::placeholder { color: var(--text3); }
+  .search-btn { background: var(--accent); color: #0a0a0f; border: none; border-radius: 8px; padding: 9px 16px; font-family: var(--mono); font-size: 12px; font-weight: 500; letter-spacing: 0.05em; cursor: pointer; transition: background 0.15s, transform 0.1s; white-space: nowrap; }
+  .search-btn:hover { background: var(--accent2); }
+  .search-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  /* ── Content ── */
+  .content { flex: 1; overflow-y: auto; padding: 24px; }
+  .content::-webkit-scrollbar { width: 3px; }
+  .content::-webkit-scrollbar-thumb { background: var(--bg4); }
+
+  /* ── Metrics ── */
+  .metrics-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
+  .metric-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 16px; position: relative; overflow: hidden; }
+  .metric-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; }
+  .m-accent::before { background: var(--accent); }
+  .m-red::before { background: var(--red); }
+  .m-amber::before { background: var(--amber); }
+  .m-neutral::before { background: var(--text3); }
+  .metric-label { font-family: var(--mono); font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text3); margin-bottom: 8px; }
+  .metric-value { font-family: var(--serif); font-size: 32px; color: var(--text); line-height: 1; }
+  .metric-sub { font-size: 11px; color: var(--text3); margin-top: 4px; }
+
+  /* ── AI Panel ── */
+  .ai-panel { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 18px 20px; margin-bottom: 20px; }
+  .ai-panel-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .ai-tag { display: flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: 10px; letter-spacing: 0.15em; text-transform: uppercase; color: var(--accent); }
+  .ai-tag-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); animation: pulse 2s ease-in-out infinite; }
+  .lark-btn { display: flex; align-items: center; gap: 6px; background: var(--red-dim); border: 1px solid rgba(255,77,109,0.25); color: var(--red); border-radius: 6px; padding: 5px 10px; font-size: 11px; font-family: var(--mono); cursor: pointer; transition: all 0.15s; }
+  .lark-btn:hover { background: rgba(255,77,109,0.2); }
+  .ai-summary-text { font-size: 14px; color: var(--text); line-height: 1.7; }
+  .ai-summary-text strong { color: var(--accent); font-weight: 500; }
+  .ai-thinking { display: flex; align-items: center; gap: 8px; font-family: var(--mono); font-size: 12px; color: var(--text3); }
+  .thinking-dots span { display: inline-block; width: 4px; height: 4px; border-radius: 50%; background: var(--accent); margin: 0 1px; animation: bounce 1.2s ease-in-out infinite; }
+  .thinking-dots span:nth-child(2){animation-delay:.2s} .thinking-dots span:nth-child(3){animation-delay:.4s}
+  @keyframes bounce { 0%,80%,100%{transform:translateY(0);opacity:.4}40%{transform:translateY(-4px);opacity:1} }
+
+  /* ── Articles ── */
+  .articles-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .articles-title { font-family: var(--mono); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text3); }
+  .sort-select { background: var(--bg3); border: 1px solid var(--border); border-radius: 6px; padding: 4px 8px; color: var(--text2); font-family: var(--mono); font-size: 11px; outline: none; cursor: pointer; }
+  .article-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; margin-bottom: 8px; transition: border-color 0.15s, background 0.15s; cursor: pointer; }
+  .article-card:hover { border-color: var(--border2); background: var(--bg3); }
+  .article-row1 { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 8px; }
+  .article-title { font-family: var(--serif); font-size: 16px; color: var(--text); line-height: 1.3; flex: 1; }
+  .sentiment-badge { display: inline-flex; align-items: center; gap: 5px; font-family: var(--mono); font-size: 10px; letter-spacing: 0.08em; padding: 3px 9px; border-radius: 20px; white-space: nowrap; flex-shrink: 0; }
+  .s-negative { background: var(--red-dim); color: var(--red); border: 1px solid rgba(255,77,109,0.2); }
+  .s-neutral { background: var(--bg3); color: var(--text2); border: 1px solid var(--border); }
+  .s-positive { background: var(--green-dim); color: var(--green); border: 1px solid rgba(74,222,128,0.2); }
+  .s-dot { width: 5px; height: 5px; border-radius: 50%; }
+  .s-dot-neg { background: var(--red); }
+  .s-dot-pos { background: var(--green); }
+  .s-dot-neu { background: var(--text3); }
+  .article-meta { display: flex; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
+  .meta-pill { font-family: var(--mono); font-size: 11px; color: var(--text3); padding: 0 8px; border-right: 1px solid var(--border2); }
+  .meta-pill:first-child { padding-left: 0; }
+  .meta-pill:last-child { border-right: none; }
+  .meta-pill.hl { color: var(--text2); }
+  .emotion-tag { font-family: var(--mono); font-size: 10px; padding: 2px 7px; border-radius: 4px; background: var(--purple-dim, rgba(167,139,250,0.1)); color: #a78bfa; margin-left: 6px; }
+  .article-excerpt { font-size: 13px; color: var(--text3); line-height: 1.6; padding-top: 10px; border-top: 1px solid var(--border); }
+
+  /* ── Empty state ── */
+  .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 80px 40px; }
+  .empty-glyph { font-family: var(--serif); font-size: 72px; font-style: italic; color: var(--bg4); line-height: 1; margin-bottom: 16px; }
+  .empty-title { font-family: var(--serif); font-size: 24px; color: var(--text2); margin-bottom: 8px; }
+  .empty-sub { font-size: 13px; color: var(--text3); max-width: 360px; line-height: 1.6; margin-bottom: 24px; }
+  .example-queries { display: flex; flex-direction: column; gap: 8px; width: 100%; max-width: 480px; }
+  .example-query { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; font-size: 13px; color: var(--text2); cursor: pointer; text-align: left; transition: all 0.15s; font-family: var(--mono); }
+  .example-query:hover { border-color: var(--accent); color: var(--accent); background: var(--bg3); }
+  .example-query::before { content: '→  '; opacity: 0.4; }
+
+  /* ── Filters ── */
+  .filter-row { display: flex; gap: 6px; margin-bottom: 20px; flex-wrap: wrap; }
+  .filter-chip { font-family: var(--mono); font-size: 11px; padding: 5px 10px; border-radius: 20px; border: 1px solid var(--border); background: var(--bg3); color: var(--text3); cursor: pointer; transition: all 0.15s; }
+  .filter-chip:hover { border-color: var(--border2); color: var(--text2); }
+  .filter-chip.on { border-color: rgba(200,241,53,0.4); background: rgba(200,241,53,0.08); color: var(--accent); }
+  .filter-chip.on-red { border-color: rgba(255,77,109,0.4); background: var(--red-dim); color: var(--red); }
+
+  /* ── Stream bar ── */
+  .stream-bar { display: flex; align-items: center; gap: 10px; padding: 10px 16px; background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 20px; font-size: 13px; color: var(--text2); }
+  .stream-bar strong { color: var(--accent); font-weight: 500; }
+  .stream-bar-label { font-family: var(--mono); font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text3); }
+
+  /* ── Lark Modal ── */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 100; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
+  .modal-overlay.open { opacity: 1; pointer-events: all; }
+  .modal { background: var(--bg2); border: 1px solid var(--border2); border-radius: 14px; padding: 28px; width: 440px; transform: translateY(8px); transition: transform 0.2s; }
+  .modal-overlay.open .modal { transform: translateY(0); }
+  .modal-title { font-family: var(--serif); font-size: 22px; margin-bottom: 6px; }
+  .modal-sub { font-size: 13px; color: var(--text3); margin-bottom: 20px; line-height: 1.6; }
+  .modal label { font-family: var(--mono); font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text3); display: block; margin-bottom: 6px; }
+  .modal input, .modal select { width: 100%; background: var(--bg3); border: 1px solid var(--border2); border-radius: 8px; padding: 10px 12px; color: var(--text); font-family: var(--mono); font-size: 13px; outline: none; margin-bottom: 16px; transition: border-color 0.2s; }
+  .modal input:focus { border-color: var(--accent); }
+  .modal-actions { display: flex; gap: 8px; }
+  .modal-cancel { flex: 1; background: transparent; border: 1px solid var(--border2); border-radius: 8px; padding: 10px; color: var(--text2); font-family: var(--mono); font-size: 12px; cursor: pointer; }
+  .modal-save { flex: 2; background: var(--red); border: none; border-radius: 8px; padding: 10px; color: #fff; font-family: var(--mono); font-size: 12px; font-weight: 500; cursor: pointer; }
+
+  /* ── Toast ── */
+  .toast { position: fixed; bottom: 24px; right: 24px; background: var(--bg3); border: 1px solid var(--border2); border-radius: 10px; padding: 12px 16px; font-family: var(--mono); font-size: 12px; color: var(--text); display: flex; align-items: center; gap: 8px; z-index: 200; opacity: 0; transform: translateY(8px); transition: all 0.2s; pointer-events: none; }
+  .toast.show { opacity: 1; transform: translateY(0); }
+  .toast-dot { width: 7px; height: 7px; border-radius: 50%; }
+
+  /* ── Skeleton ── */
+  .skeleton { background: var(--bg3); border-radius: 4px; animation: shimmer 1.5s ease-in-out infinite; }
+  @keyframes shimmer { 0%,100%{opacity:.5}50%{opacity:1} }
+</style>
+</head>
+<body>
+
+<!-- ── Login screen ── -->
+<div id="login-screen">
+  <div class="login-card">
+    <span class="login-mark">Brandwatch NGC3</span>
+    <div class="login-title">Media Intelligence</div>
+    <div class="login-sub">Enter your team password to access the dashboard.</div>
+    <input class="login-input" id="password-input" type="password" placeholder="Team password" onkeydown="if(event.key==='Enter') attemptLogin()" autofocus />
+    <button class="login-btn" onclick="attemptLogin()">Enter →</button>
+    <div class="login-error" id="login-error"></div>
+    <div class="login-note">Internal tool · Share the password with your team only</div>
+  </div>
+</div>
+
+<!-- ── App shell (hidden until logged in) ── -->
+<div class="shell" id="app-shell" style="display:none">
+  <aside class="sidebar">
+    <div class="logo">
+      <span class="logo-mark">NGC3 Intelligence</span>
+      <span class="logo-name">Media Monitor</span>
+    </div>
+    <nav class="nav">
+      <span class="nav-label">Monitor</span>
+      <div class="nav-item active">
+        <span class="nav-icon">◉</span> Live Monitor
+        <span class="nav-badge" id="alert-badge">!</span>
+      </div>
+      <div class="nav-item" onclick="showToast('Coming in v2','warn')">
+        <span class="nav-icon">≋</span> Projects
+      </div>
+      <div class="nav-item" onclick="showToast('Coming in v2','warn')">
+        <span class="nav-icon">⧖</span> History
+      </div>
+      <span class="nav-label">Alerts</span>
+      <div class="nav-item" onclick="openLarkSetup()">
+        <span class="nav-icon">⚑</span> Lark Alerts
+      </div>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="user-row">
+        <div class="user-avatar-fallback">✓</div>
+        <span class="user-name">Team access</span>
+        <button class="sign-out-btn" onclick="signOut()">out</button>
+      </div>
+      <div class="status-row">
+        <span class="status-dot"></span>
+        <span>Brandwatch connected</span>
+      </div>
+    </div>
+  </aside>
+
+  <div class="main">
+    <div class="topbar">
+      <div class="search-wrap">
+        <span class="search-icon">⌕</span>
+        <input class="search-input" id="search-input" type="text"
+          placeholder='e.g. "Show me negative stories about TikTok in the UK this week"'
+          onkeydown="if(event.key==='Enter') runSearch()" />
+      </div>
+      <button class="search-btn" id="search-btn" onclick="runSearch()">Analyse →</button>
+    </div>
+
+    <div class="content" id="content">
+      <div class="empty-state" id="empty-state">
+        <div class="empty-glyph">Bw</div>
+        <div class="empty-title">What do you need to know?</div>
+        <div class="empty-sub">Ask in plain English. Claude will find the right project and query, filter by sentiment and location, and summarise what matters — in any language.</div>
+        <div class="example-queries">
+          <div class="example-query" onclick="tryQuery(this.dataset.q)" data-q="Show me negative stories about TikTok in the UK this week">Show me negative stories about TikTok in the UK this week</div>
+          <div class="example-query" onclick="tryQuery(this.dataset.q)" data-q="Any crisis signals for Nike across Southeast Asia in the last 48 hours?">Any crisis signals for Nike across Southeast Asia in the last 48 hours?</div>
+          <div class="example-query" onclick="tryQuery(this.dataset.q)" data-q="What's the media sentiment around the Ed Sheeran tour across all markets?">What's the media sentiment around the Ed Sheeran tour across all markets?</div>
+          <div class="example-query" onclick="tryQuery(this.dataset.q)" data-q="Show me high-impact negative mentions for Spotify in Germany">Show me high-impact negative mentions for Spotify in Germany</div>
+        </div>
+      </div>
+
+      <div id="results-area" style="display:none">
+        <div class="metrics-row" id="metrics-row"></div>
+        <div class="ai-panel" id="ai-panel"></div>
+        <div class="filter-row" id="filter-row"></div>
+        <div class="stream-bar" id="stream-bar"></div>
+        <div class="articles-header">
+          <span class="articles-title" id="articles-count-label"></span>
+          <select class="sort-select" onchange="sortArticles(this.value)">
+            <option value="impact">Sort: Impact</option>
+            <option value="sentiment">Sort: Most negative</option>
+            <option value="date">Sort: Most recent</option>
+          </select>
+        </div>
+        <div id="articles-list"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Lark Modal -->
+<div class="modal-overlay" id="lark-modal">
+  <div class="modal">
+    <div class="modal-title" style="color:var(--red)">⚑ Lark Alert Setup</div>
+    <div class="modal-sub">When Claude detects a crisis signal, it posts an alert to your Lark channel automatically.</div>
+    <label>Lark Webhook URL</label>
+    <input type="text" id="lark-webhook-input" placeholder="https://open.larksuite.com/open-apis/bot/v2/hook/..." />
+    <label>Alert threshold</label>
+    <select id="lark-threshold">
+      <option value="high">High impact negative only</option>
+      <option value="any">Any negative mention</option>
+    </select>
+    <div class="modal-actions">
+      <button class="modal-cancel" onclick="closeLarkModal()">Cancel</button>
+      <button class="modal-save" onclick="saveLarkWebhook()">Save & Test →</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"><span class="toast-dot" id="toast-dot"></span><span id="toast-msg"></span></div>
+
+<script>
+// ── Auth state ──
+// Password is checked server-side via /api/brandwatch.
+// The client just sends the entered password with every request as a header.
+// It is NEVER stored in code — it lives only in Vercel environment variables.
+let teamPassword = null;
+let currentArticles = [];
+let parsedQuery = {};
+let larkWebhook = localStorage.getItem('lark_webhook') || '';
+
+// ── Check session on load ──
+window.addEventListener('load', () => {
+  const saved = sessionStorage.getItem('team_pw');
+  if (saved) { teamPassword = saved; showApp(); }
+});
+
+// ── Password login ──
+async function attemptLogin() {
+  const input = document.getElementById('password-input');
+  const err = document.getElementById('login-error');
+  const pw = input.value.trim();
+  if (!pw) return;
+
+  // Test the password by making a real (cheap) API call through the proxy
+  try {
+    const resp = await fetch('/api/brandwatch?path=projects/summary', {
+      headers: { 'X-Team-Password': pw }
+    });
+    if (resp.status === 403) {
+      err.textContent = 'Incorrect password — try again';
+      input.classList.add('error');
+      setTimeout(() => input.classList.remove('error'), 400);
+      input.value = '';
+      input.focus();
+      return;
+    }
+    // Password accepted
+    teamPassword = pw;
+    sessionStorage.setItem('team_pw', pw);
+    showApp();
+  } catch(e) {
+    err.textContent = 'Could not reach server — check your connection';
+  }
+}
+
+function showApp() {
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app-shell').style.display = 'flex';
+}
+
+function signOut() {
+  sessionStorage.removeItem('team_pw');
+  teamPassword = null;
+  document.getElementById('login-screen').style.display = 'flex';
+  document.getElementById('app-shell').style.display = 'none';
+  document.getElementById('password-input').value = '';
+  document.getElementById('login-error').textContent = '';
+}
+
+// ── API proxy call (all BW calls go through your Vercel serverless function) ──
+async function bwFetch(path, params = {}) {
+  const qs = new URLSearchParams({ path, ...params }).toString();
+  const resp = await fetch(`/api/brandwatch?${qs}`, {
+    headers: { 'X-Team-Password': teamPassword }
+  });
+  if (resp.status === 403) { signOut(); throw new Error('Session expired — please sign in again'); }
+  if (!resp.ok) throw new Error(`API error ${resp.status}`);
+  return resp.json();
+}
+
+// ── Claude via server-side proxy ──
+async function callClaude(system, user) {
+  const resp = await fetch('/api/claude', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Team-Password': teamPassword
+    },
+    body: JSON.stringify({ system, user })
+  });
+  if (!resp.ok) throw new Error(`Claude API error ${resp.status}`);
+  const data = await resp.json();
+  return data.content?.[0]?.text || '';
+}
+
+// ── Parse natural language query ──
+async function parseQuery(query) {
+  const text = await callClaude(
+    `You are a media monitoring query parser for Brandwatch. Extract search parameters from a natural language query.
+Return ONLY valid JSON:
+{
+  "brand": "main brand or topic",
+  "country": "country name or null",
+  "sentiment": "negative|positive|neutral|all",
+  "dateRangeDays": 7,
+  "summary": "one sentence describing the search"
+}`,
+    query
+  );
+  try { return JSON.parse(text.replace(/```json|```/g, '').trim()); }
+  catch { return { brand: query, country: null, sentiment: 'negative', dateRangeDays: 7, summary: query }; }
+}
+
+// ── Match Brandwatch project + query to brand ──
+async function findProjectAndQuery(brand) {
+  // 1. Get all projects
+  const projectsData = await bwFetch('projects/summary');
+  const projects = projectsData.results || [];
+  if (!projects.length) return null;
+
+  // 2. Ask Claude to pick the best project
+  const projectList = projects.map(p => `ID ${p.id}: ${p.name}`).join('\n');
+  const projectMatch = await callClaude(
+    'Match a brand/topic to the best Brandwatch project. Return ONLY the numeric project ID or null.',
+    `Brand: "${brand}"\nProjects:\n${projectList}`
+  );
+  const projectId = parseInt(projectMatch.trim());
+  if (isNaN(projectId)) return null;
+  const project = projects.find(p => p.id === projectId);
+  if (!project) return null;
+
+  // 3. Get queries within that project
+  const queriesData = await bwFetch(`projects/${projectId}/queries`);
+  const queries = queriesData.results || [];
+  if (!queries.length) return { project, query: null };
+
+  // 4. Ask Claude to pick the best query
+  const queryList = queries.map(q => `ID ${q.id}: ${q.name}`).join('\n');
+  const queryMatch = await callClaude(
+    'Pick the best matching Brandwatch query for this brand/topic. Return ONLY the numeric query ID or null.',
+    `Brand: "${brand}"\nQueries:\n${queryList}`
+  );
+  const queryId = parseInt(queryMatch.trim());
+  const query = queries.find(q => q.id === queryId) || queries[0];
+  return { project, query };
+}
+
+// ── Fetch mentions from Brandwatch ──
+async function fetchMentions(projectId, queryId, dateRangeDays) {
+  const endDate = new Date().toISOString().split('T')[0];
+  const startDate = new Date(Date.now() - dateRangeDays * 86400000).toISOString().split('T')[0];
+  return bwFetch(`projects/${projectId}/data/mentions`, {
+    queryId,
+    startDate,
+    endDate,
+    pageSize: 50,
+    page: 0,
+    orderBy: 'impact',
+    orderDirection: 'desc'
+  });
+}
+
+// ── Filter by sentiment + country ──
+function filterMentions(results, parsed) {
+  return (results || []).filter(m => {
+    if (parsed.country) {
+      const c = (m.country || m.locationName || '').toLowerCase();
+      if (c && !c.includes(parsed.country.toLowerCase())) return false;
+    }
+    if (parsed.sentiment !== 'all') {
+      return m.sentiment === parsed.sentiment;
+    }
+    return true;
+  });
+}
+
+// ── Generate AI summary ──
+async function generateSummary(articles, query, projectName, queryName) {
+  if (!articles.length) return 'No matching mentions found for this query in the selected time period.';
+  const data = articles.slice(0, 20).map(a =>
+    `Title: ${a.title || a.url} | Source: ${a.domain} | Country: ${a.country || '?'} | Sentiment: ${a.sentiment} | Impact: ${a.impact || 0} | Emotion: ${a.classifications?.map(c=>c.name).join(', ')||'—'}`
+  ).join('\n');
+  return callClaude(
+    `You are a senior PR and media intelligence analyst. Analyse these Brandwatch mentions and write a sharp 2-3 sentence intelligence summary. Identify dominant storylines, flag crisis signals, note geographic concentration, highlight highest-reach outlets, and mention any notable emotional signals (anger, sadness etc.). Use <strong> tags for key entities. Be direct — no fluff.`,
+    `Query: "${query}"\nProject: ${projectName} / ${queryName}\n\nMentions:\n${data}`
+  );
+}
+
+// ── Mock data (used when no real API available) ──
+function getMockData(parsed) {
+  const b = parsed.brand || 'TikTok';
+  const c = parsed.country || 'United Kingdom';
+  return [
+    { title:`${b} faces fresh parliamentary inquiry over user data practices`, domain:'theguardian.com', country:c, sentiment:'negative', impact:412, date:'2026-05-04', url:'#', classifications:[{name:'Anger'}], snippet:`MPs called for emergency hearings after researchers alleged ${b}'s data collection was broader than disclosed.` },
+    { title:`BBC investigation: ${b} algorithm amplifying harmful content to teens`, domain:'bbc.co.uk', country:c, sentiment:'negative', impact:524, date:'2026-05-03', url:'#', classifications:[{name:'Fear'}], snippet:`An undercover investigation found that newly created accounts were served increasingly extreme content within hours.` },
+    { title:`Brands pause ${b} spend after controversy sparks boycott calls`, domain:'marketingweek.com', country:c, sentiment:'negative', impact:185, date:'2026-05-02', url:'#', classifications:[{name:'Disgust'}], snippet:`Several major advertisers are reviewing their commitments following social media backlash.` },
+    { title:`Watchdog demands answers from ${b} on content moderation failures`, domain:'thetimes.co.uk', country:c, sentiment:'negative', impact:311, date:'2026-05-01', url:'#', classifications:[{name:'Anger'}], snippet:`Ofcom has written to the platform requesting detailed information about its moderation policies.` },
+    { title:`${b} safety concerns raised on leading radio talk show`, domain:'lbc.co.uk', country:c, sentiment:'negative', impact:143, date:'2026-04-30', url:'#', classifications:[{name:'Sadness'}], snippet:`Callers expressed growing concern about children's use of the platform during a 40-minute prime-time segment.` },
+  ];
+}
+
+// ── Render ──
+function sentimentBadge(s) {
+  if (s === 'negative') return ['Negative', 's-negative', 's-dot-neg'];
+  if (s === 'positive') return ['Positive', 's-positive', 's-dot-pos'];
+  return ['Neutral', 's-neutral', 's-dot-neu'];
+}
+
+function formatImpact(n) {
+  if (!n && n !== 0) return '—';
+  if (n > 300) return `<span style="color:var(--red);font-family:var(--mono);font-size:10px;padding:2px 7px;border-radius:4px;background:var(--red-dim)">High impact</span>`;
+  if (n > 100) return `<span style="color:var(--amber);font-family:var(--mono);font-size:10px;padding:2px 7px;border-radius:4px;background:var(--amber-dim)">Med impact</span>`;
+  return `<span style="color:var(--text3);font-family:var(--mono);font-size:10px;padding:2px 7px;border-radius:4px;background:var(--bg4)">Low impact</span>`;
+}
+
+function renderMetrics(articles, parsed) {
+  const total = articles.length;
+  const neg = articles.filter(a => a.sentiment === 'negative').length;
+  const avgImpact = total ? Math.round(articles.reduce((s,a) => s+(a.impact||0), 0)/total) : 0;
+  const countries = [...new Set(articles.map(a=>a.country||a.locationName).filter(Boolean))];
+  document.getElementById('metrics-row').innerHTML = `
+    <div class="metric-card m-accent"><div class="metric-label">Mentions found</div><div class="metric-value">${total}</div><div class="metric-sub">${parsed.dateRangeDays||7}-day window</div></div>
+    <div class="metric-card ${neg > total*.5 ? 'm-red' : 'm-amber'}"><div class="metric-label">Negative</div><div class="metric-value">${neg}</div><div class="metric-sub">${total?Math.round(neg/total*100):0}% of total</div></div>
+    <div class="metric-card m-neutral"><div class="metric-label">Avg impact score</div><div class="metric-value">${avgImpact}</div><div class="metric-sub">across all mentions</div></div>
+    <div class="metric-card m-neutral"><div class="metric-label">Markets covered</div><div class="metric-value" style="font-size:22px;margin-top:4px">${countries.length || '—'}</div><div class="metric-sub">${countries.slice(0,3).join(' · ')||'No location data'}</div></div>
+  `;
+}
+
+function renderArticles(articles) {
+  document.getElementById('articles-count-label').textContent = `${articles.length} mention${articles.length!==1?'s':''}`;
+  document.getElementById('articles-list').innerHTML = articles.map(a => {
+    const [sLabel, sClass, dotClass] = sentimentBadge(a.sentiment);
+    const emotion = a.classifications?.[0]?.name || '';
+    const snippet = a.snippet || a.fullText || '';
+    const date = a.date ? new Date(a.date).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'}) : '—';
+    return `<div class="article-card" onclick="window.open('${a.url||'#'}','_blank')">
+      <div class="article-row1">
+        <div class="article-title">${a.title || a.url || 'Untitled'}</div>
+        <span class="sentiment-badge ${sClass}"><span class="s-dot ${dotClass}"></span>${sLabel}</span>
+      </div>
+      <div class="article-meta">
+        <span class="meta-pill hl">${a.domain||'Unknown'}</span>
+        <span class="meta-pill">${a.country||a.locationName||'—'}</span>
+        <span class="meta-pill">${a.language||'—'}</span>
+        <span class="meta-pill">${date}</span>
+        ${formatImpact(a.impact)}
+        ${emotion ? `<span class="emotion-tag">${emotion}</span>` : ''}
+      </div>
+      ${snippet ? `<div class="article-excerpt">${snippet}</div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+function sortArticles(field) {
+  const sorted = [...currentArticles].sort((a,b) => {
+    if (field==='impact') return (b.impact||0)-(a.impact||0);
+    if (field==='sentiment') return a.sentiment==='negative'?-1:1;
+    if (field==='date') return new Date(b.date||0)-new Date(a.date||0);
+    return 0;
+  });
+  renderArticles(sorted);
+}
+
+// ── Crisis detection ──
+function detectCrisis(articles) {
+  return articles.filter(a => a.sentiment==='negative' && (a.impact||0) > 300).length >= 3;
+}
+
+// ── Lark ──
+function openLarkSetup() { document.getElementById('lark-modal').classList.add('open'); if(larkWebhook) document.getElementById('lark-webhook-input').value = larkWebhook; }
+function closeLarkModal() { document.getElementById('lark-modal').classList.remove('open'); }
+function saveLarkWebhook() {
+  const val = document.getElementById('lark-webhook-input').value.trim();
+  if (!val) { showToast('Enter a webhook URL','err'); return; }
+  larkWebhook = val; localStorage.setItem('lark_webhook', val);
+  closeLarkModal(); showToast('Lark configured — sending test…','warn');
+  sendLarkAlert({ title:'Cision Intelligence connected', summary:'Lark alerts active. You will be notified of crisis signals.', isTest:true });
+}
+async function sendLarkAlert({title,summary,query,articleCount,isTest=false}) {
+  if (!larkWebhook) return;
+  const msg = {
+    msg_type:'interactive',
+    card:{
+      header:{ title:{tag:'plain_text',content:isTest?'✓ Test — Media Intelligence':'⚑ Crisis signal: '+title}, template:isTest?'green':'red' },
+      elements:[
+        { tag:'div', text:{tag:'lark_md',content:isTest?summary:`**Query:** ${query}\n\n**Signal:** ${articleCount} high-impact negative mentions.\n\n${summary}`} },
+        { tag:'action', actions:[{tag:'button',text:{tag:'plain_text',content:'Open Dashboard'},type:'primary',url:window.location.href}] }
+      ]
+    }
+  };
+  try {
+    await fetch(larkWebhook,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(msg),mode:'no-cors'});
+    showToast(isTest?'Test sent to Lark':'Crisis alert sent to Lark', isTest?'ok':'warn');
+  } catch { showToast('Could not reach Lark webhook','err'); }
+}
+
+// ── Main search ──
+async function runSearch() {
+  const query = document.getElementById('search-input').value.trim();
+  if (!query) { showToast('Enter a search query','warn'); return; }
+  document.getElementById('empty-state').style.display = 'none';
+  document.getElementById('results-area').style.display = 'block';
+  document.getElementById('search-btn').disabled = true;
+  document.getElementById('search-btn').textContent = 'Thinking…';
+  document.getElementById('metrics-row').innerHTML = Array(4).fill(0).map(()=>`<div class="metric-card m-neutral"><div class="skeleton" style="height:12px;width:60%;margin-bottom:12px"></div><div class="skeleton" style="height:36px;width:40%"></div></div>`).join('');
+  document.getElementById('ai-panel').innerHTML = `<div class="ai-panel-header"><div class="ai-tag"><span class="ai-tag-dot"></span>Claude analysis</div></div><div class="ai-thinking"><span class="thinking-dots"><span></span><span></span><span></span></span>&nbsp;Parsing query…</div>`;
+  document.getElementById('filter-row').innerHTML=''; document.getElementById('stream-bar').innerHTML=''; document.getElementById('articles-list').innerHTML='';
+
+  try {
+    const parsed = await parseQuery(query);
+    parsedQuery = parsed;
+    let articles; let projectLabel='—'; let queryLabel='—'; let usedMock=false;
+
+    if (googleIdToken) {
+      try {
+        setThinking('Searching your Brandwatch projects…');
+        const match = await findProjectAndQuery(parsed.brand);
+        if (match?.project) {
+          projectLabel = match.project.name;
+          queryLabel = match.query?.name || 'All queries';
+          setThinking(`Fetching mentions from "${queryLabel}"…`);
+          const raw = await fetchMentions(match.project.id, match.query?.id, parsed.dateRangeDays || 7);
+          articles = filterMentions(raw.results, parsed);
+        } else {
+          showToast(`No project found for "${parsed.brand}" — showing demo data`,'warn');
+          articles = getMockData(parsed); usedMock = true;
+          projectLabel = 'Demo'; queryLabel = parsed.brand;
+        }
+      } catch(e) {
+        showToast('Brandwatch API unavailable — showing demo data','warn');
+        articles = getMockData(parsed); usedMock = true;
+        projectLabel = 'Demo'; queryLabel = parsed.brand;
+      }
+    } else {
+      articles = getMockData(parsed); usedMock = true;
+      projectLabel = 'Demo'; queryLabel = parsed.brand;
+    }
+
+    currentArticles = articles;
+    renderMetrics(articles, parsed);
+
+    document.getElementById('filter-row').innerHTML = `
+      <span class="filter-chip on-red">Negative</span>
+      <span class="filter-chip on">Neutral</span>
+      <span class="filter-chip on">Positive</span>
+      <span class="filter-chip on">${parsed.country||'All markets'}</span>
+    `;
+    document.getElementById('stream-bar').innerHTML = `
+      <span class="stream-bar-label">Project</span>
+      <strong>${projectLabel}</strong>
+      <span style="color:var(--text3);font-family:var(--mono);font-size:11px">/</span>
+      <strong>${queryLabel}</strong>
+      ${usedMock?'<span style="font-family:var(--mono);font-size:11px;color:var(--amber)">· demo data</span>':''}
+      <span style="margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--text3)">${parsed.summary||query}</span>
+    `;
+
+    setThinking('Generating intelligence summary…');
+    const summary = await generateSummary(articles, query, projectLabel, queryLabel);
+    const isCrisis = detectCrisis(articles);
+
+    document.getElementById('ai-panel').innerHTML = `
+      <div class="ai-panel-header">
+        <div class="ai-tag"><span class="ai-tag-dot"></span>Claude analysis</div>
+        ${isCrisis ? `<button class="lark-btn" onclick="triggerLarkAlert()">${larkWebhook?'⚑ Send Lark alert':'⚑ Set up Lark alerts'}</button>` : ''}
+      </div>
+      <div class="ai-summary-text">${summary}</div>
+    `;
+
+    if (isCrisis) document.getElementById('alert-badge').style.display = 'flex';
+    if (isCrisis && larkWebhook) {
+      sendLarkAlert({ title:parsed.brand, summary:summary.replace(/<[^>]*>/g,''), query, articleCount:articles.filter(a=>a.sentiment==='negative').length });
+    }
+
+    renderArticles(articles);
+  } catch(e) {
+    document.getElementById('ai-panel').innerHTML = `<div style="color:var(--red);font-size:13px">Error: ${e.message}</div>`;
+    showToast('Something went wrong','err');
+  }
+  document.getElementById('search-btn').disabled=false;
+  document.getElementById('search-btn').textContent='Analyse →';
+}
+
+function setThinking(msg) {
+  const el = document.getElementById('ai-panel')?.querySelector('.ai-thinking');
+  if (el) el.textContent = msg;
+}
+function triggerLarkAlert() {
+  if (!larkWebhook) { openLarkSetup(); return; }
+  const summary = document.getElementById('ai-panel').querySelector('.ai-summary-text')?.innerText||'';
+  sendLarkAlert({title:parsedQuery.brand,summary,query:document.getElementById('search-input').value,articleCount:currentArticles.filter(a=>a.sentiment==='negative').length});
+}
+function tryQuery(q) { document.getElementById('search-input').value=q; runSearch(); }
+function showToast(msg,type='ok') {
+  const t=document.getElementById('toast'),d=document.getElementById('toast-dot'),m=document.getElementById('toast-msg');
+  m.textContent=msg; d.style.background=type==='ok'?'var(--accent)':type==='err'?'var(--red)':'var(--amber)';
+  t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),3200);
+}
+document.getElementById('lark-modal').addEventListener('click',function(e){if(e.target===this)closeLarkModal();});
+</script>
+</body>
+</html>
