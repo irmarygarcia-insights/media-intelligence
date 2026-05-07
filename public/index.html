@@ -6,6 +6,7 @@
 <title>Media Intelligence</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Instrument+Serif:ital@0;1&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 :root {
@@ -283,7 +284,7 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); font
       <!-- Welcome: centered search -->
       <div class="welcome-state" id="welcome-state">
         <div class="welcome-title">Ask anything about your brand's media coverage.</div>
-        <div class="welcome-sub">Write your query in plain English below — the more detail you give (e.g., market, date range, goals, sentiment), the sharper the intelligence.</div>
+        <div class="welcome-sub">Write your query in plain English below — the more detail you give (e.g., market(s), date range, goals, sentiment), the sharper the intelligence.</div>
 
         <div class="welcome-search-wrap">
           <div class="welcome-search-inner">
@@ -296,6 +297,8 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); font
             <button class="welcome-template-btn" onclick="toggleTemplates()">Browse templates</button>
           </div>
         </div>
+
+
 
         <div class="templates-panel" id="templates-panel">
           <div class="templates-title">Query templates — click to populate</div>
@@ -400,48 +403,138 @@ function goHome() {
 }
 
 function exportReport() {
-  const query = document.getElementById('search-input').value || parsedQuery.summary || 'Media Intelligence Report';
-  const summary = document.getElementById('ai-panel')?.querySelector('.ai-summary-text')?.innerText || '';
+  if (!currentArticles.length) { showToast('No data to export yet','warn'); return; }
   const date = new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'});
+  const query = document.getElementById('search-input').value || parsedQuery.summary || '';
+  const brand = parsedQuery.brand || '—';
+  const market = parsedQuery.country || 'Global';
+  const days = parsedQuery.dateRangeDays || 7;
+  const summary = document.getElementById('ai-panel')?.querySelector('.ai-summary-text')?.innerText || '';
   const neg = currentArticles.filter(a=>a.sentiment==='negative').length;
   const pos = currentArticles.filter(a=>a.sentiment==='positive').length;
+  const neu = currentArticles.filter(a=>a.sentiment==='neutral').length;
   const inHeadline = currentArticles.filter(a=>a.inHeadline).length;
-  const articles = currentArticles.map(a =>
-    `${a.sentiment.toUpperCase()} | ${a.domain} | ${a.country} | Impact: ${a.impact} | ${a.inHeadline?'IN HEADLINE':''}\n${a.title}\n${a.snippet||''}`
-  ).join('\n\n---\n\n');
+  const avgImpact = currentArticles.length ? Math.round(currentArticles.reduce((s,a)=>s+(a.impact||0),0)/currentArticles.length) : 0;
+  const compCount = {};
+  currentArticles.forEach(a=>(a.competitorsMentioned||[]).forEach(c=>{compCount[c]=(compCount[c]||0)+1;}));
+  const topComps = Object.entries(compCount).sort((a,b)=>b[1]-a[1]);
+  const wb = XLSX.utils.book_new();
 
-  const report = `MEDIA INTELLIGENCE REPORT
-Generated: ${date}
-Query: ${query}
-Brand: ${parsedQuery.brand||'—'} | Market: ${parsedQuery.country||'Global'} | Range: last ${parsedQuery.dateRangeDays||7} days
-Boolean query: ${parsedQuery.booleanQuery||'—'}
+  // ── Tab 1: Summary ──
+  const summaryData = [
+    ['MEDIA INTELLIGENCE REPORT', ''],
+    ['Generated', date],
+    ['', ''],
+    ['QUERY', ''],
+    ['Natural language query', query],
+    ['Boolean query', parsedQuery.booleanQuery || '—'],
+    ['Brand / topic', brand],
+    ['Market', market],
+    ['Sentiment filter', parsedQuery.sentiment || 'all'],
+    ['Date range', `Last ${days} days`],
+    ['Goal', parsedQuery.goal || '—'],
+    ['', ''],
+    ['INTELLIGENCE SUMMARY', ''],
+    ['', summary],
+    ['', ''],
+    ['KEY METRICS', ''],
+    ['Total mentions', currentArticles.length],
+    ['Negative', `${neg} (${currentArticles.length?Math.round(neg/currentArticles.length*100):0}%)`],
+    ['Positive', `${pos} (${currentArticles.length?Math.round(pos/currentArticles.length*100):0}%)`],
+    ['Neutral', `${neu} (${currentArticles.length?Math.round(neu/currentArticles.length*100):0}%)`],
+    ['Avg impact score', avgImpact],
+    ['In headline', `${inHeadline} (${currentArticles.length?Math.round(inHeadline/currentArticles.length*100):0}%)`],
+    ['', ''],
+    ['COMPETITOR CO-MENTIONS', ''],
+    ...topComps.map(([name, count]) => [name, count]),
+    topComps.length === 0 ? ['No competitor co-mentions detected', ''] : ['', ''],
+    ['', ''],
+    ['NOTE', 'This report uses demo data. Connect Brandwatch API credentials to pull live data.'],
+  ];
+  const ws1 = XLSX.utils.aoa_to_sheet(summaryData);
+  ws1['!cols'] = [{wch: 28}, {wch: 80}];
+  // Style header rows
+  XLSX.utils.book_append_sheet(wb, ws1, 'Summary');
 
-═══════════════════════════════════
-SUMMARY
-═══════════════════════════════════
-${summary}
+  // ── Tab 2: All mentions ──
+  const mentionsHeaders = [
+    'Date', 'Headline', 'Source', 'Country', 'Language',
+    'Sentiment', 'Impact Score', 'In Headline', 'Competitors Mentioned',
+    'Emotion', 'Snippet', 'URL'
+  ];
+  const mentionsRows = currentArticles
+    .sort((a,b)=>(b.impact||0)-(a.impact||0))
+    .map(a => [
+      a.date || '—',
+      a.title || '—',
+      a.domain || '—',
+      a.country || '—',
+      a.language || '—',
+      (a.sentiment||'—').charAt(0).toUpperCase() + (a.sentiment||'').slice(1),
+      a.impact || 0,
+      a.inHeadline ? 'Yes' : 'No',
+      (a.competitorsMentioned||[]).join(', ') || '—',
+      a.classifications?.[0]?.name || '—',
+      a.snippet || '—',
+      a.url !== '#' ? a.url : '—',
+    ]);
+  const ws2 = XLSX.utils.aoa_to_sheet([mentionsHeaders, ...mentionsRows]);
+  ws2['!cols'] = [
+    {wch:12},{wch:60},{wch:22},{wch:16},{wch:12},
+    {wch:12},{wch:14},{wch:12},{wch:30},{wch:12},{wch:80},{wch:40}
+  ];
+  XLSX.utils.book_append_sheet(wb, ws2, 'All Mentions');
 
-═══════════════════════════════════
-METRICS
-═══════════════════════════════════
-Total mentions: ${currentArticles.length}
-Negative: ${neg} (${currentArticles.length?Math.round(neg/currentArticles.length*100):0}%)
-Positive: ${pos} (${currentArticles.length?Math.round(pos/currentArticles.length*100):0}%)
-In headline: ${inHeadline}
+  // ── Tab 3: Negative only ──
+  const negRows = currentArticles
+    .filter(a=>a.sentiment==='negative')
+    .sort((a,b)=>(b.impact||0)-(a.impact||0))
+    .map(a => [
+      a.date||'—', a.title||'—', a.domain||'—', a.country||'—',
+      a.impact||0, a.inHeadline?'Yes':'No',
+      (a.competitorsMentioned||[]).join(', ')||'—',
+      a.classifications?.[0]?.name||'—', a.snippet||'—'
+    ]);
+  const negHeaders = ['Date','Headline','Source','Country','Impact Score','In Headline','Competitors Mentioned','Emotion','Snippet'];
+  const ws3 = XLSX.utils.aoa_to_sheet([negHeaders, ...negRows]);
+  ws3['!cols'] = [{wch:12},{wch:60},{wch:22},{wch:16},{wch:14},{wch:12},{wch:30},{wch:12},{wch:80}];
+  XLSX.utils.book_append_sheet(wb, ws3, 'Negative Only');
 
-═══════════════════════════════════
-MENTIONS
-═══════════════════════════════════
-${articles}`;
+  // ── Tab 4: Query & sourcing ──
+  const queryData = [
+    ['QUERY & SOURCING DETAILS', ''],
+    ['', ''],
+    ['Natural language input', query],
+    ['', ''],
+    ['Brandwatch Boolean Query', parsedQuery.booleanQuery || '—'],
+    ['', ''],
+    ['PARAMETERS USED', ''],
+    ['Brand / topic', brand],
+    ['Market / country', market],
+    ['Sentiment filter', parsedQuery.sentiment || 'all'],
+    ['Date range (days)', days],
+    ['Goal', parsedQuery.goal || '—'],
+    ['Expected language', parsedQuery.language || 'English'],
+    ['English-language market', parsedQuery.isEnglishMarket ? 'Yes' : 'No'],
+    ['', ''],
+    ['LANGUAGE COVERAGE NOTE', ''],
+    ['', parsedQuery.isEnglishMarket
+      ? 'English-language market — search coverage is comprehensive'
+      : `Non-English market detected. Results may not include ${parsedQuery.language}-language coverage. Consider adding native-language terms to the boolean query.`],
+    ['', ''],
+    ['DATA SOURCE', ''],
+    ['Platform', 'Brandwatch Consumer Research'],
+    ['Data type', 'Demo data (connect API for live data)'],
+    ['Report generated', date],
+  ];
+  const ws4 = XLSX.utils.aoa_to_sheet(queryData);
+  ws4['!cols'] = [{wch:30},{wch:80}];
+  XLSX.utils.book_append_sheet(wb, ws4, 'Query & Sourcing');
 
-  const blob = new Blob([report], {type:'text/plain'});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `media-intelligence-${(parsedQuery.brand||'report').toLowerCase().replace(/\s+/g,'-')}-${new Date().toISOString().split('T')[0]}.txt`;
-  a.click();
-  URL.revokeObjectURL(url);
-  showToast('Report exported','ok');
+  // Download
+  const filename = `media-intel-${brand.toLowerCase().replace(/\s+/g,'-')}-${new Date().toISOString().split('T')[0]}.xlsx`;
+  XLSX.writeFile(wb, filename);
+  showToast('Excel report exported','ok');
 }
 
 async function callClaude(system, user) {
