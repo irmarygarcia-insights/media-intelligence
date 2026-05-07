@@ -283,7 +283,7 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); font
       <!-- Welcome: centered search -->
       <div class="welcome-state" id="welcome-state">
         <div class="welcome-title">Ask anything about your brand's media coverage.</div>
-        <div class="welcome-sub">Write your query in plain English below — the more detail you give, the sharper the intelligence.</div>
+        <div class="welcome-sub">Write your query in plain English below — the more detail you give (e.g., market, date range, goals, sentiment), the sharper the intelligence.</div>
 
         <div class="welcome-search-wrap">
           <div class="welcome-search-inner">
@@ -295,14 +295,6 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); font
             <button class="welcome-search-btn" id="search-btn" onclick="runSearch()">Analyse →</button>
             <button class="welcome-template-btn" onclick="toggleTemplates()">Browse templates</button>
           </div>
-        </div>
-
-        <div class="welcome-tips">
-          <div class="welcome-tips-label">What to include in your query</div>
-          <div class="welcome-tip"><span class="tip-emoji">🌍</span><div><span class="tip-name">Market</span><span class="tip-examples">"in the UK" · "across Southeast Asia" · "in Germany and France"</span></div></div>
-          <div class="welcome-tip"><span class="tip-emoji">📅</span><div><span class="tip-name">Date range</span><span class="tip-examples">"last 7 days" · "since May 1st" · "this quarter"</span></div></div>
-          <div class="welcome-tip"><span class="tip-emoji">🎯</span><div><span class="tip-name">Goal</span><span class="tip-examples">"focus on regulatory risk" · "find crisis signals" · "track campaign reception"</span></div></div>
-          <div class="welcome-tip"><span class="tip-emoji">😐</span><div><span class="tip-name">Sentiment</span><span class="tip-examples">"negative coverage only" · "any sentiment" · "positive stories only"</span></div></div>
         </div>
 
         <div class="templates-panel" id="templates-panel">
