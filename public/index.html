@@ -598,7 +598,7 @@ async function runSearch() {
     parsedQuery = parsed;
     let articles; let projectLabel='—'; let queryLabel='—'; let usedMock=false;
 
-    if (googleIdToken) {
+    if (teamPassword) {
       try {
         setThinking('Searching your Brandwatch projects…');
         const match = await findProjectAndQuery(parsed.brand);
