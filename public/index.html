@@ -40,7 +40,7 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); font
 
 /* Shell */
 .shell { display: flex; height: 100vh; overflow: hidden; }
-.sidebar { width: 210px; flex-shrink: 0; background: var(--bg2); border-right: 1px solid var(--border); display: flex; flex-direction: column; }
+.sidebar { width: 210px; flex-shrink: 0; background: var(--bg2); border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; }
 .logo { padding: 20px 18px 16px; border-bottom: 1px solid var(--border); }
 .logo-mark { font-family: var(--mono); font-size: 9px; letter-spacing: 0.2em; color: var(--accent); text-transform: uppercase; display: block; }
 .logo-name { font-family: var(--serif); font-size: 20px; color: var(--text); line-height: 1.1; display: block; margin-top: 3px; }
@@ -62,7 +62,7 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); font
 @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
 
 /* Main */
-.main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+.main { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
 
 /* Hero search - only shown during results */
 .search-hero { background: var(--bg2); border-bottom: 1px solid var(--border); padding: 14px 28px; flex-shrink: 0; }
@@ -99,11 +99,10 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); font
 .template-card:hover .template-card-text { color: var(--accent); }
 
 /* Content */
-.content { flex: 1; overflow-y: auto; min-height: 0; }
+.content { flex: 1; overflow-y: scroll; min-height: 0; height: 0; }
 .content::-webkit-scrollbar { width: 3px; }
 .content::-webkit-scrollbar-thumb { background: var(--bg4); }
 #results-area { padding: 20px 28px; }
-
 /* Welcome */
 .welcome-state { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100%; padding: 48px 28px; text-align: center; }
 .welcome-title { font-family: var(--serif); font-size: 28px; color: var(--text); margin-bottom: 10px; }
@@ -711,6 +710,57 @@ function renderQueryPanel(parsed) {
     </div>`;
 }
 
+async function bwFetch(path, params={}) {
+  const qs = new URLSearchParams({path, ...params}).toString();
+  const resp = await fetch(`/api/brandwatch?${qs}`, {
+    headers: {'X-Team-Password': teamPassword}
+  });
+  if (resp.status === 403) { signOut(); throw new Error('Session expired'); }
+  if (!resp.ok) {
+    const err = await resp.json().catch(()=>({}));
+    throw new Error(err.error || `Brandwatch API error ${resp.status}`);
+  }
+  return resp.json();
+}
+
+async function findBrandwatchProject(brand) {
+  const data = await bwFetch('projects/summary');
+  const projects = data.results || data || [];
+  if (!projects.length) return null;
+  const list = projects.map(p=>`ID ${p.id}: ${p.name}`).join('\n');
+  const match = await callClaude(
+    'Match a brand/topic to the best Brandwatch project name. Return ONLY the numeric project ID or null.',
+    `Brand: "${brand}"\nProjects:\n${list}`
+  );
+  const id = parseInt(match.trim());
+  return isNaN(id) ? null : projects.find(p=>p.id===id)||null;
+}
+
+async function fetchBrandwatchMentions(projectId, queryId, dateRangeDays, sentiment) {
+  const endDate = new Date().toISOString().split('T')[0];
+  const startDate = new Date(Date.now()-dateRangeDays*86400000).toISOString().split('T')[0];
+  const params = { startDate, endDate, pageSize:50, page:0, orderBy:'impact', orderDirection:'desc' };
+  if (queryId) params.queryId = queryId;
+  const data = await bwFetch(`projects/${projectId}/data/mentions`, params);
+  let results = data.results || [];
+  if (sentiment !== 'all') results = results.filter(m=>m.sentiment===sentiment);
+  // Normalise Brandwatch fields to our internal format
+  return results.map(m=>({
+    title: m.title || m.url,
+    domain: m.domain || (m.url ? new URL(m.url).hostname : 'Unknown'),
+    country: m.country || m.locationName || '—',
+    language: m.language || 'English',
+    sentiment: m.sentiment || 'neutral',
+    impact: m.impact || 0,
+    date: m.date ? m.date.split('T')[0] : '—',
+    url: m.url || '#',
+    inHeadline: m.title ? true : false,
+    competitorsMentioned: [],
+    classifications: m.categories ? m.categories.map(c=>({name:c.name})) : [],
+    snippet: m.snippet || m.fullText?.slice(0,200) || '',
+  }));
+}
+
 async function runSearch() {
   const query=document.getElementById('search-input').value.trim();
   if(!query){showToast('Enter a search query','warn');return;}
@@ -729,8 +779,51 @@ async function runSearch() {
   try {
     const parsed=await parseQuery(query);
     parsedQuery=parsed;
-    setThinking('Generating intelligence report…');
-    const articles=await generateMockData(parsed);
+
+    let articles=[], usedDemo=false, projectLabel='—', queryLabel='All queries';
+
+    // ── Try Brandwatch first ──
+    try {
+      setThinking('Connecting to Brandwatch…');
+      const project = await findBrandwatchProject(parsed.brand);
+      if (project) {
+        projectLabel = project.name;
+        setThinking(`Fetching mentions from "${project.name}"…`);
+        // Try to find a matching query within the project
+        let queryId = null;
+        try {
+          const qData = await bwFetch(`projects/${project.id}/queries`);
+          const queries = qData.results || [];
+          if (queries.length) {
+            const qList = queries.map(q=>`ID ${q.id}: ${q.name}`).join('\n');
+            const qMatch = await callClaude(
+              'Pick the best matching Brandwatch query for this topic. Return ONLY the numeric query ID or null.',
+              `Topic: "${parsed.brand}"\nQueries:\n${qList}`
+            );
+            const qId = parseInt(qMatch.trim());
+            if (!isNaN(qId)) { queryId = qId; queryLabel = queries.find(q=>q.id===qId)?.name||'—'; }
+          }
+        } catch(e) { /* no queries, use project-level */ }
+
+        articles = await fetchBrandwatchMentions(project.id, queryId, parsed.dateRangeDays||7, parsed.sentiment);
+        if (articles.length === 0) {
+          showToast(`No mentions found in Brandwatch for "${parsed.brand}" — showing demo data`, 'warn');
+          articles = await generateMockData(parsed);
+          usedDemo = true;
+        }
+      } else {
+        showToast(`No Brandwatch project matched "${parsed.brand}" — showing demo data`, 'warn');
+        articles = await generateMockData(parsed);
+        usedDemo = true;
+        projectLabel = 'No match found';
+      }
+    } catch(e) {
+      console.error('Brandwatch error:', e.message);
+      showToast(`Brandwatch: ${e.message} — showing demo data`, 'warn');
+      articles = await generateMockData(parsed);
+      usedDemo = true;
+    }
+
     currentArticles=articles;
     renderMetrics(articles,parsed);
     renderInsights(articles,parsed);
@@ -744,10 +837,11 @@ async function runSearch() {
       <span class="filter-chip on">With competitors (${articles.filter(a=>(a.competitorsMentioned||[]).length>0).length})</span>`;
 
     document.getElementById('stream-bar').innerHTML=`
-      <span class="stream-bar-label">Query</span>
-      <strong>${parsed.brand||query}</strong>
+      <span class="stream-bar-label">${usedDemo?'Demo':'Brandwatch'}</span>
+      <strong>${usedDemo?parsed.brand:projectLabel}</strong>
+      ${!usedDemo?`<span style="font-family:var(--mono);font-size:11px;color:var(--text3)">/</span><strong>${queryLabel}</strong>`:''}
       <span style="font-family:var(--mono);font-size:11px;color:var(--text2)">· ${parsed.country||'Global'} · last ${parsed.dateRangeDays||7} days</span>
-      <span class="demo-badge">demo data</span>
+      ${usedDemo?'<span class="demo-badge">demo data</span>':'<span style="font-family:var(--mono);font-size:10px;color:var(--green);border:1px solid rgba(74,222,128,0.3);background:rgba(74,222,128,0.08);padding:2px 8px;border-radius:20px">live data</span>'}
       <span style="margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--text3)">${parsed.goal||''}</span>`;
 
     setThinking('Writing summary…');
