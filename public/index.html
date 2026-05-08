@@ -99,13 +99,13 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); font
 .template-card:hover .template-card-text { color: var(--accent); }
 
 /* Content */
-.content { flex: 1; overflow-y: auto; display: flex; flex-direction: column; min-height: 0; }
+.content { flex: 1; overflow-y: auto; min-height: 0; }
 .content::-webkit-scrollbar { width: 3px; }
 .content::-webkit-scrollbar-thumb { background: var(--bg4); }
-#results-area { padding: 20px 28px; flex: 1; }
+#results-area { padding: 20px 28px; }
 
 /* Welcome */
-.welcome-state { display: flex; flex-direction: column; align-items: center; justify-content: center; flex: 1; padding: 48px 28px; text-align: center; overflow-y: auto; }
+.welcome-state { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100%; padding: 48px 28px; text-align: center; }
 .welcome-title { font-family: var(--serif); font-size: 28px; color: var(--text); margin-bottom: 10px; }
 .welcome-sub { font-size: 14px; color: var(--text3); max-width: 480px; line-height: 1.7; margin-bottom: 36px; }
 
@@ -284,7 +284,7 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); font
       <!-- Welcome: centered search -->
       <div class="welcome-state" id="welcome-state">
         <div class="welcome-title">Ask anything about your brand's media coverage.</div>
-        <div class="welcome-sub">Write your query in plain English below — the more detail you give (e.g., market(s), date range, goals, sentiment), the sharper the intelligence.</div>
+        <div class="welcome-sub">Write your query in plain English below — the more detail you give, the sharper the intelligence.</div>
 
         <div class="welcome-search-wrap">
           <div class="welcome-search-inner">
@@ -298,7 +298,13 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); font
           </div>
         </div>
 
-
+        <div class="welcome-tips">
+          <div class="welcome-tips-label">What to include in your query</div>
+          <div class="welcome-tip"><span class="tip-emoji">🌍</span><div><span class="tip-name">Market</span><span class="tip-examples">"in the UK" · "across Southeast Asia" · "in Germany and France"</span></div></div>
+          <div class="welcome-tip"><span class="tip-emoji">📅</span><div><span class="tip-name">Date range</span><span class="tip-examples">"last 7 days" · "since May 1st" · "this quarter"</span></div></div>
+          <div class="welcome-tip"><span class="tip-emoji">🎯</span><div><span class="tip-name">Goal</span><span class="tip-examples">"focus on regulatory risk" · "find crisis signals" · "track campaign reception"</span></div></div>
+          <div class="welcome-tip"><span class="tip-emoji">😐</span><div><span class="tip-name">Sentiment</span><span class="tip-examples">"negative coverage only" · "any sentiment" · "positive stories only"</span></div></div>
+        </div>
 
         <div class="templates-panel" id="templates-panel">
           <div class="templates-title">Query templates — click to populate</div>
